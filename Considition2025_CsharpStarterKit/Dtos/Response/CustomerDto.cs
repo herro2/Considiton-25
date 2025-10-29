@@ -6,6 +6,7 @@ public record CustomerDto
 {
     public required string Id { get; init; }
     public required string Type { get; init; }
+    public required string Persona { get; init; }
     public required string FromNode { get; init; }
     public required string ToNode { get; init; }
     public int DepartureTick { get; set; }

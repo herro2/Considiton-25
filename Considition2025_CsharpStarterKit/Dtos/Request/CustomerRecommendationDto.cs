@@ -8,6 +8,6 @@ public record CustomerRecommendationDto
 
 public record ChargingRecommendationDto
 {
-    public string NodeId { get; set; }
-    public float ChargeTo { get; set; }
+    public required string NodeId { get; set; }
+    public float ChargeTo { get; set; } = 1.0f;
 }
