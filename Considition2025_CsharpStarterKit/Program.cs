@@ -40,7 +40,7 @@ for (var i = 0; i < map.Ticks; i++)
             return;
         }
 
-        finalScore = gameResponse.CustomerCompletionScore + gameResponse.KwhRevenue + gameResponse.Score;
+        finalScore = gameResponse.Score;
 
         // Check if we are happy with the response
         if (ShouldMoveOnToNextTick(gameResponse))
