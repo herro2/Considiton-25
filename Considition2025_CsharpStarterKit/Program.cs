@@ -17,22 +17,6 @@ using Considition2025_CsharpStarterKit.Dtos.Request;
 using Considition2025_CsharpStarterKit.Dtos.Response;
 using System.Text;
 
-// Helper extension methods
-public static class CustomerExtensions
-{
-    private static readonly Dictionary<string, float> EnergyConsumptionRates = new()
-    {
-        { "Delivery", 0.12f },
-        { "Service", 0.15f },
-        { "Personal", 0.10f }
-    };
-
-    public static float EnergyConsumptionPerKm(this CustomerDto customer)
-    {
-        return EnergyConsumptionRates.GetValueOrDefault(customer.Type, 0.12f);
-    }
-}
-
 // Configuration
 var apiKey = "29b3af80-a90c-4e58-b5c9-703e517d6a2a";
 var useLocalDocker = false;
@@ -487,19 +471,6 @@ Node? FindNearestChargingStation(Path path, int currentIndex, Graph graph)
     return null;
 }
 
-StationInfo SelectBestChargingStation(List<StationInfo> stations, Path path, SimulationState simState, int currentTick)
-{
-    if (stations.Count == 1) return stations[0];
-
-    var scored = stations.Select(s => new
-    {
-        Station = s,
-        Score = ScoreStation(s, path, simState, currentTick)
-    }).OrderByDescending(x => x.Score).ToList();
-
-    return scored[0].Station;
-}
-
 float ScoreStation(StationInfo station, Path path, SimulationState simState, int currentTick)
 {
     float score = 0f;
@@ -563,20 +534,7 @@ float ScoreStation(StationInfo station, Path path, SimulationState simState, int
     return score;
 }
 
-float CalculateOptimalChargeEnergyOnly(CustomerDto customer, float energyNeededToDestination, int stationsAvailable, int stationIndexInPath)
-{
-    float safetyMargin = 1.2f;
-    float target = energyNeededToDestination * safetyMargin;
-
-    if (stationsAvailable > 1 && stationIndexInPath == 0)
-    {
-        target *= 0.8f;
-    }
-
-    return Math.Min(target, customer.MaxCharge);
-}
-
-// FIXED: New class to replace anonymous type
+// Station and customer data structures
 public class StationInfo
 {
     public Node Node { get; set; } = null!;
@@ -898,122 +856,6 @@ public class Graph
         return null;
     }
 
-    // Find paths that consider charging requirements
-    public List<ChargingPath> FindChargingAwarePaths(string fromNodeId, string toNodeId, float maxRange, float currentCharge, float energyPerKm)
-    {
-        var paths = new List<ChargingPath>();
-        var allPaths = FindAllViablePaths(fromNodeId, toNodeId, maxRange, currentCharge, energyPerKm, 5);
-
-        foreach (var path in allPaths)
-        {
-            var chargingPlan = PlanChargingStops(path, maxRange, currentCharge, energyPerKm);
-            if (chargingPlan != null)
-            {
-                paths.Add(new ChargingPath
-                {
-                    Path = path,
-                    ChargingStops = chargingPlan,
-                    TotalCost = EstimatePathCost(path, chargingPlan, energyPerKm)
-                });
-            }
-        }
-
-        return paths.OrderBy(p => p.TotalCost).ToList();
-    }
-
-    private List<Path> FindAllViablePaths(string from, string to, float maxRange, float currentCharge, float energyPerKm, int maxPaths)
-    {
-        // For simplicity, return variants using different charging stations
-        var directPath = FindShortestPath(from, to);
-        if (directPath == null) return new List<Path>();
-
-        var paths = new List<Path> { directPath };
-
-        // Find alternative paths through different charging stations
-        var chargingStations = GetChargingStations().Take(10).ToList();
-
-        foreach (var station in chargingStations)
-        {
-            if (paths.Count >= maxPaths) break;
-
-            var pathToStation = FindShortestPath(from, station.Id);
-            var pathFromStation = FindShortestPath(station.Id, to);
-
-            if (pathToStation != null && pathFromStation != null &&
-                !pathToStation.Nodes.Contains(to) && !pathFromStation.Nodes.Contains(from))
-            {
-                var combinedNodes = pathToStation.Nodes.Concat(pathFromStation.Nodes.Skip(1)).ToList();
-                var combinedDistance = pathToStation.TotalDistance + pathFromStation.TotalDistance;
-
-                paths.Add(new Path
-                {
-                    Nodes = combinedNodes,
-                    TotalDistance = combinedDistance
-                });
-            }
-        }
-
-        return paths;
-    }
-
-    private List<string> PlanChargingStops(Path path, float maxRange, float currentCharge, float energyPerKm)
-    {
-        var chargingStops = new List<string>();
-        var battery = currentCharge;
-
-        for (int i = 0; i < path.Nodes.Count - 1; i++)
-        {
-            var edge = GetEdge(path.Nodes[i], path.Nodes[i + 1]);
-            if (edge == null) continue;
-
-            var energyNeeded = edge.Length * energyPerKm;
-
-            if (battery < energyNeeded * 1.1f)
-            {
-                var node = GetNode(path.Nodes[i]);
-                if (node?.HasChargingStation == true)
-                {
-                    chargingStops.Add(node.Id);
-                    battery = maxRange; // Assume full charge for planning
-                }
-                else
-                {
-                    // Need to charge but no station - path not viable
-                    return null;
-                }
-            }
-
-            battery -= energyNeeded;
-        }
-
-        return chargingStops;
-    }
-
-    private float EstimatePathCost(Path path, List<string> chargingStops, float energyPerKm)
-    {
-        float cost = path.TotalDistance * 0.1f; // Base distance cost
-
-        // Add charging time cost
-        cost += chargingStops.Count * 10f;
-
-        // Add zone-based costs
-        foreach (var nodeId in path.Nodes)
-        {
-            var node = GetNode(nodeId);
-            if (node?.Zone != null)
-            {
-                // Prefer zones with renewable energy
-                var renewableRatio = node.Zone.EnergySources
-                    .Where(s => s.Type == "wind" || s.Type == "solar")
-                    .Sum(s => s.GenerationCapacity) /
-                    Math.Max(1, node.Zone.EnergySources.Sum(s => s.GenerationCapacity));
-
-                cost -= renewableRatio * 2f; // Bonus for renewable zones
-            }
-        }
-
-        return cost;
-    }
 }
 
 public class Node
@@ -1043,6 +885,22 @@ public class Path
 public class ChargingPath
 {
     public Path Path { get; set; } = null!;
-    public List<string> ChargingStops { get; set; } = new();
+    public List<string> ChargingStops { get; set; } = [];
     public float TotalCost { get; set; }
+}
+
+// Helper extension methods
+public static class CustomerExtensions
+{
+    private static readonly Dictionary<string, float> EnergyConsumptionRates = new()
+    {
+        { "Delivery", 0.12f },
+        { "Service", 0.15f },
+        { "Personal", 0.10f }
+    };
+
+    public static float EnergyConsumptionPerKm(this CustomerDto customer)
+    {
+        return EnergyConsumptionRates.GetValueOrDefault(customer.Type, 0.12f);
+    }
 }
