@@ -8,10 +8,14 @@ public class ConsiditionClient
 {
     private readonly HttpClient client;
 
-    public ConsiditionClient(string _baseUri)
+    public ConsiditionClient(string _baseUri, string? _apiKey = null)
     {
         client = new HttpClient();
         client.BaseAddress = new Uri(_baseUri);
+        if (!string.IsNullOrEmpty(_apiKey))
+        {
+            client.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+        }
     }
 
     public async Task<GameResponseDto?> PostGame(GameInputDto _inputDto)
