@@ -1,4 +1,4 @@
-namespace Considition2025_CsharpStarterKit.Dtos.Request;
+﻿namespace Considition2025_CsharpStarterKit.Dtos.Request;
 
 public record ChargingRecommendationDto
 {
